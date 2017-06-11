@@ -1,28 +1,56 @@
-var rtm_client = require('@slack/client').RtmClient;
-var memory_data_store = require('@slack/client').MemoryDataStore;
-var client_events = require('@slack/client').CLIENT_EVENTS;
-var rtm_events = require('@slack/client').RTM_EVENTS;
+var Botkit = require('botkit');
 
-var bot_token = process.env.SLACK_BOT_TOKEN || '';
+var controller = Botkit.slackbot({send_via_rtm: true});
 
-var rtm = new rtm_client(bot_token,
-{
-    logLevel: 'error',
-    dataStore: new memory_data_store()
+var bot = controller.spawn({token : process.env.SLACK_BOT_TOKEN});
+
+controller.hears([/Hagamos un ([^ ?]*)\s*\??/],['mention','direct_mention','ambient'], function(bot, message) {
+    let event_name = message.match[1];  
+    bot.startConversation(message, function(err, convo){
+
+        convo.setVar('event_name', event_name);
+        
+        convo.addMessage('[{{vars.event_name}}] ¡La raja!', 'yes_thread');
+        convo.addMessage({action:'completed', text:'[{{vars.event_name}}] Bu. Será para la otra'}, 'no_thread');
+
+
+        convo.addQuestion('¿Se armó? ({{vars.event_name}})',
+            [
+                {
+                    pattern: "(si|sí|dale|ok|sip|obvio)",
+                    callback: function(response, convo){
+                        console.log("New event confirmed by user");
+                        convo.gotoThread('yes_thread');
+                    }
+                },
+                {
+                    pattern: bot.utterances.no,
+                    callback: function(response, convo){
+                        console.log("New event cancelled by user");
+                        convo.gotoThread('no_thread');
+                    }
+                },
+                {
+                    default:true,
+                    callback: function(Response, convo){
+                        convo.say("Perdón, no entendí la respuesta.");
+                        convo.repeat();
+                        convo.next(); 
+                    }
+                }
+            ], {}, 'default');
+    });
 });
 
-let my_id;
-rtm.on(client_events.RTM.AUTHENTICATED, function(rtmStartData) {
-    console.log(`Logged in as "${rtmStartData.self.name}" of team "${rtmStartData.team.name}", not yet connected to a channel`);
+controller.hears([/(\S+)\s+y\s+(\S+) son (pareja|grupo|uno)/], ['direct_mention'], function(bot, message){
+    let user1 = message.match[1], user2 = message.match[2];
+    console.log(`New group for ${user1} y ${user2}`);
+    bot.reply(message, {text: `Ok, de ahora en adelante ${user1} y ${user2} cuentan como grupo`, link_names:true});
 });
 
 
-
-rtm.on(rtm_events.MESSAGE, function(message) {
-    let user = rtm.dataStore.getUserById(message.user);
-    console.log(`New message from ${user.name}`);
-
-    if(message.text.indexOf('
+bot.startRTM(function(err, bot, payload){
+    if(err) {
+        throw new Error('Could not connect to Slack');
+    }
 });
-
-rtm.start();

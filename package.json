@@ -6,6 +6,6 @@
         "botkit": "^0.5.4"
     },
     "scripts": {
-        "start": "node --harmony dolla.js"
+        "start": "node dolla.js"
     }
 }
